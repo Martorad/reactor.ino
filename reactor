@@ -1,0 +1,83 @@
+#include <Display.h>
+
+enum mode {TEMPERATURE, BRIGHTNESS} activeMode;
+
+const int THERMOMETER = 1;
+const int LIGHT_SENSOR = 2;
+const int BUZZER = 3;
+const int RED_LED = 4;
+const int GREEN_LED = 5;
+const int KEY1_TEMPERATURE = 8;
+const int KEY2_BRIGHTNESS = 9;
+const int alarmDelay = 50;
+const int alarmDecaSecond = 10000;
+
+int lastButtonStateT = HIGH;
+int lastButtonStateL = HIGH;
+int buttonStateT;
+int buttonStateL;
+int alarmTimeSinceStart = 0;
+
+bool alarmActive = false;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  pinMode(BUZZER, OUTPUT);
+  pinMode(KEY1_TEMPERATURE, INPUT_PULLUP);
+  pinMode(KEY2_BRIGHTNESS, INPUT_PULLUP);
+  pinMode(THERMOMETER, INPUT);
+  pinMode(LIGHT_SENSOR, INPUT);
+  activeMode = TEMPERATURE;
+  digitalWrite(RED_LED, HIGH);
+}
+
+void alarmT() {
+  const int frequencyT = 300;
+  tone(BUZZER, frequencyT, alarmDelay);
+}
+
+void alarmL() {
+  const int frequencyL = 100;
+  tone(BUZZER, frequencyL, alarmDelay);
+}
+
+void loop() {
+  buttonStateT = digitalRead(KEY1_TEMPERATURE); 
+    if (buttonStateT != lastButtonStateT) {
+      if (buttonStateT == LOW) { 
+        activeMode = TEMPERATURE;
+        digitalWrite(RED_LED, HIGH);
+        digitalWrite(GREEN_LED, LOW);
+      }
+    }
+    lastButtonStateT = buttonStateT; 
+  buttonStateL = digitalRead(KEY2_BRIGHTNESS); 
+    if (buttonStateL != lastButtonStateL) {
+      if (buttonStateL == LOW) { 
+        activeMode = BRIGHTNESS;
+        digitalWrite(RED_LED, LOW);
+        digitalWrite(GREEN_LED, HIGH);
+      }
+    }
+    lastButtonStateL = buttonStateL; 
+  if (activeMode == TEMPERATURE) {
+    Serial.println("TEMP");
+    int analogT = 1023 - analogRead(THERMOMETER);
+    Display.show(analogT);
+    if (analogT >= 600) {
+      alarmT();
+      delay(50);
+    }
+  }
+  if (activeMode == BRIGHTNESS) {
+    Serial.println("BRIGHT");
+    int analogL = analogRead(LIGHT_SENSOR);
+    Display.show(analogL);
+    if (analogL >= 600) {
+      alarmL();
+      delay(50);
+    }
+  }
+}
