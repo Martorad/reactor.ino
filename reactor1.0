@@ -1,16 +1,18 @@
 #include <Display.h>
 
-enum mode {TEMPERATURE, BRIGHTNESS} activeMode;
+enum mode {TEMPERATURE, BRIGHTNESS} activeMode; //enum that handles current active mode
 
-const int THERMOMETER = 1;
+const int THERMOMETER = 1; //constants for pins
 const int LIGHT_SENSOR = 2;
 const int BUZZER = 3;
 const int RED_LED = 4;
 const int GREEN_LED = 5;
 const int KEY1_TEMPERATURE = 8;
 const int KEY2_BRIGHTNESS = 9;
-const int alarmDelay = 50;
-const int alarmDecaSecond = 10000;
+const int alarmDelay = 50; //constants for magic number avoidance
+const int alarmDecaSecond = 3000;
+const int temperatureDangerTreshold = 575;
+const int lightDangerTreshold = 700;
 
 int lastButtonStateT = HIGH;
 int lastButtonStateL = HIGH;
@@ -18,7 +20,8 @@ int buttonStateT;
 int buttonStateL;
 int alarmTimeSinceStart = 0;
 
-bool alarmActive = false;
+bool alarmActiveT = false;
+bool alarmActiveL = false;
 
 void setup() {
   Serial.begin(9600);
@@ -33,7 +36,7 @@ void setup() {
   digitalWrite(RED_LED, HIGH);
 }
 
-void alarmT() {
+void alarmT() { //methods for both alarms
   const int frequencyT = 300;
   tone(BUZZER, frequencyT, alarmDelay);
 }
@@ -44,40 +47,65 @@ void alarmL() {
 }
 
 void loop() {
-  buttonStateT = digitalRead(KEY1_TEMPERATURE); 
+  buttonStateT = digitalRead(KEY1_TEMPERATURE); //first mode toggler
     if (buttonStateT != lastButtonStateT) {
       if (buttonStateT == LOW) { 
         activeMode = TEMPERATURE;
         digitalWrite(RED_LED, HIGH);
         digitalWrite(GREEN_LED, LOW);
+        alarmActiveL = false;
       }
     }
     lastButtonStateT = buttonStateT; 
-  buttonStateL = digitalRead(KEY2_BRIGHTNESS); 
+  buttonStateL = digitalRead(KEY2_BRIGHTNESS); //second mode toggler
     if (buttonStateL != lastButtonStateL) {
       if (buttonStateL == LOW) { 
         activeMode = BRIGHTNESS;
         digitalWrite(RED_LED, LOW);
         digitalWrite(GREEN_LED, HIGH);
+        alarmActiveT = false;
       }
     }
     lastButtonStateL = buttonStateL; 
-  if (activeMode == TEMPERATURE) {
+  if (activeMode == TEMPERATURE) { //checks whether or not temperature mode is active
     Serial.println("TEMP");
-    int analogT = 1023 - analogRead(THERMOMETER);
-    Display.show(analogT);
-    if (analogT >= 600) {
-      alarmT();
-      delay(50);
+    int analogT = 1023 - analogRead(THERMOMETER); //inverting analogRead value, as higher temperature = lower reading
+    Display.show(analogT);                        //(more readable this way)
+    if (analogT >= temperatureDangerTreshold) { //checks if treshhold has been crossed
+      alarmTimeSinceStart = 0; 
+      alarmActiveT = true; //toggles boolean value
+    }
+    if (alarmActiveT == true && alarmTimeSinceStart < alarmDecaSecond) { //the second part of this if is where the magic happens
+      int millisT1 = millis();                                           //it makes sure that the mode can still be toggled
+      alarmT();                                                          //even while the alarm is sounding
+      delay(alarmDelay);
+      int millisT2 = millis();
+      alarmTimeSinceStart += (millisT2 - millisT1); //delay difference gets added up to timeSinceStart counter
+    }
+    if (alarmTimeSinceStart >= alarmDecaSecond) { //if the timeSinceStart counter value is higher than the desired length of the alarm,
+      alarmTimeSinceStart = 0;                    //reset its value and update the boolean to false, to make sure the above if doesn't
+      alarmActiveT = false;                       //endlessly repeat
     }
   }
-  if (activeMode == BRIGHTNESS) {
+  if (activeMode == BRIGHTNESS) { //checks whether or not brightness mode is active
     Serial.println("BRIGHT");
     int analogL = analogRead(LIGHT_SENSOR);
     Display.show(analogL);
-    if (analogL >= 600) {
+    if (analogL >= lightDangerTreshold) { //checks if treshhold has been crossed
+      alarmTimeSinceStart = 0;
+      alarmActiveL = true; //toggles boolean value
+    }
+    if (alarmActiveL == true && alarmTimeSinceStart < alarmDecaSecond) {
+      int millisL1 = millis();
       alarmL();
-      delay(50);
+      delay(alarmDelay);
+      int millisL2 = millis();
+      alarmTimeSinceStart += (millisL2 - millisL1);
+      Serial.println(alarmTimeSinceStart);
+    }
+    if (alarmTimeSinceStart >= alarmDecaSecond) {
+      alarmTimeSinceStart = 0;
+      alarmActiveL = false;
     }
   }
 }
